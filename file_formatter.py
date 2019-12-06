@@ -17,7 +17,17 @@ def line_formatter(line, lineno):
     """
     if lineno == 0:
         return line
-    return line.capitalize()
+    line = line.rstrip('\n')
+    deli = '\t'
+    parts = line.split(deli)
+    new_parts = []
+    for i, p in enumerate(parts):
+        if i == 0:
+            new_parts.append(p)
+        else:
+            p = '' if p == '\N' else p
+            new_parts.append('{%s}' % p)
+    return deli.join(new_parts) + '\n'
 
 
 class FileFormatter:
@@ -67,8 +77,8 @@ class FileFormatter:
             read_size += len(line)
             now_percent = float(read_size * 100) / file_size
             if now_percent - percent >= 1:
+                percent = now_percent
                 print('--> %d%% ' % int(now_percent), end='')
-            percent = now_percent
             lineno += 1
         fh.close()
         th.close()
