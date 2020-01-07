@@ -1,3 +1,12 @@
+"""
+Format file content by line.
+
+E.g. Input line: a,b,c
+Output line: {a},{b},{c}
+
+The format is up to you.
+"""
+
 from os import path
 from absl import app
 from absl import flags
