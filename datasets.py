@@ -7,7 +7,7 @@ Supported data types:
   text[] - text[]
   integer - int
   integer[] - int[]
-  json - json
+  json - json, embedded object not supported
   enum - enum
   timestamp - ts
   timestamp in seconds - tsint
@@ -25,29 +25,35 @@ from absl import flags
 import json
 
 FLAGS = flags.FLAGS
+
+"""
+Required flags
+"""
 flags.DEFINE_string('tar', None, 'Target file name')
 flags.DEFINE_string('delim', None, 'Delimiter')
 flags.DEFINE_string('num', None, 'Data number')
 flags.DEFINE_string('columns', None, 'Columns definition. E.g. name:text,age:integer')
 
+"""
+Optional flags
+"""
+flags.DEFINE_string('enum_cards', None, 'Enumerate cards. E.g. A,B,C,D,E')
+flags.DEFINE_string('json_schema', None, 'JSON schema. E.g. tags:text[],name:text')
+flags.DEFINE_string('int_low', None, 'Integer lower bound')
+flags.DEFINE_string('int_up', None, 'Integer upper bound')
+flags.DEFINE_string('int_array_len_low', None, 'Integer array length lower bound')
+flags.DEFINE_string('int_array_len_up', None, 'Integer array length upper bound')
+flags.DEFINE_string('int_array_elem_low', None, 'Integer array element lower bound')
+flags.DEFINE_string('int_array_elem_up', None, 'Integer array element upper bound')
+flags.DEFINE_string('timestamp_low', None, 'Timestamp lower bound')
+flags.DEFINE_string('timestamp_delta', None, 'Timestamp delta in days')
+
 FAKER = Faker()
 
-# 时间戳范围
-ts_low = date(2019, 12, 1)
-ts_up = date(2020, 1, 7)
-ts_delta = ts_up - ts_low
-# 枚举定义
-enum_cards = ['A', 'B', 'C', 'D', 'E']
-enum_cards_num = len(enum_cards)
-# 分割符
+# column delimiter
 supported_delims = {
     'tab': '\t',
     'space': '    ',
-}
-# json schema
-json_schema = {
-    'tags': 'text[]',
-    'name': 'text'
 }
 
 
@@ -59,6 +65,25 @@ class ColumnError(Exception):
 class DelimError(Exception):
     """
     """
+
+
+class Parameters(object):
+    """
+    runtime parameters
+    """
+    def __init__(self):
+        self.enum_cards = ['bad', 'ok', 'good']
+        self.json_schema = {"name": "text", "tags": "text[]"}
+        self.integer_low = 900
+        self.integer_up = 1000
+        self.text_array_len_low = 3
+        self.text_array_len_up = 10
+        self.integer_array_len_low = 3
+        self.integer_array_len_up = 10
+        self.integer_array_elem_low = 100
+        self.integer_array_elem_up = 200
+        self.timestamp_low = date(2019, 12, 1)
+        self.timestamp_delta = timedelta(30)
 
 
 class Array(object):
@@ -74,43 +99,75 @@ class Array(object):
         return self.value
 
 
-def int_array(length=10, low=0, up=100):
+def int_array(p):
+    """
+
+    :type p: Parameters
+    """
     arr = list()
-    for i in range(length):
-        arr.append(integer(low, up))
+    ran = random.randint(p.integer_array_len_low, p.integer_array_len_up)
+    for i in range(ran):
+        arr.append(integer(p, p.integer_array_elem_low, p.integer_array_elem_up))
     return Array(arr)
 
 
-def text_array(length=10):
+def text_array(p):
+    """
+
+    :type p: Parameters
+    """
     arr = list()
-    for i in range(length):
-        arr.append(word())
+    ran = random.randint(p.text_array_len_low, p.text_array_len_up)
+    for i in range(ran):
+        arr.append(word(p))
     return Array(arr)
 
 
-def word():
+def word(p):
     return FAKER.word()
 
 
-def integer(low=0, up=100):
-    return random.randint(low, up)
+def integer(p, low=None, up=None):
+    """
+    
+    :param up:
+    :param low:
+    :type p: Parameters
+    :param p:
+    :return:
+    """
+    lb = p.integer_low if low is None else low
+    ub = p.integer_up if up is None else up
+    return random.randint(lb, ub)
 
 
-def timestamp():
-    offset = random.randint(0, ts_delta.days)
+def timestamp(p):
+    """
+
+    :type p: Parameters
+    """
+    offset = random.randint(0, p.timestamp_delta.days)
     h, m, s = random.randint(0, 23), random.randint(0, 59), random.randint(0, 59)
-    return str(ts_low + timedelta(days=offset)) + ' ' + str(time(h, m, s))
+    return str(p.timestamp_low + timedelta(days=offset)) + ' ' + str(time(h, m, s))
 
 
-def timestamp_int():
-    offset = random.randint(0, ts_delta.days)
+def timestamp_int(p):
+    """
+
+    :type p: Parameters
+    """
+    offset = random.randint(0, p.timestamp_delta.days)
     h, m, s = random.randint(0, 23), random.randint(0, 59), random.randint(0, 59)
-    dt = ts_low + timedelta(days=offset)
+    dt = p.timestamp_low + timedelta(days=offset)
     return int(datetime(dt.year, dt.month, dt.day, h, m, s).timestamp())
 
 
-def enum():
-    return enum_cards[random.randint(0, enum_cards_num - 1)]
+def enum(p):
+    """
+
+    :type p:  Parameters
+    """
+    return p.enum_cards[random.randint(0, len(p.enum_cards) - 1)]
 
 
 def parse_columns(columns):
@@ -135,10 +192,22 @@ def parse_delim(delim):
     return char
 
 
-def _json():
+def parse_enum_cards(cards):
+    return cards.split(',')
+
+
+def parse_json_schema(schema):
+    return parse_columns(schema)
+
+
+def _json(p):
+    """
+
+    :type p: Parameters
+    """
     js = dict()
-    for _, f in enumerate(json_schema):
-        v = type_method_map[json_schema[f]]()
+    for _, f in enumerate(p.json_schema):
+        v = type_method_map[p.json_schema[f]](p)
         js[f] = v.value_of() if isinstance(v, Array) else v
     return json.dumps(js)
 
@@ -185,11 +254,12 @@ def main(argv):
     except FileNotFoundError as e:
         print('Error: %s' % str(e))
         return
+    params = Parameters()
     while i < num:
         i += 1
         row = list()
         for _, c in enumerate(col_methods):
-            row.append(str(col_methods[c]()))
+            row.append(str(col_methods[c](params)))
         fh.write(delim.join(row) + '\n')
 
 
